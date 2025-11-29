@@ -150,8 +150,12 @@ class HullWhite2FSimulatorGPU:
         u[:, 0] = 0.0
         
         # Generate all random numbers at once (more efficient on GPU)
-        Z1 = xp.random.standard_normal((n_trials, n_steps), dtype=xp.float32)
-        Z_indep = xp.random.standard_normal((n_trials, n_steps), dtype=xp.float32)
+        if self.use_gpu:
+            Z1 = xp.random.standard_normal((n_trials, n_steps), dtype=xp.float32)
+            Z_indep = xp.random.standard_normal((n_trials, n_steps), dtype=xp.float32)
+        else:
+            Z1 = xp.random.standard_normal((n_trials, n_steps)).astype(xp.float32)
+            Z_indep = xp.random.standard_normal((n_trials, n_steps)).astype(xp.float32)
         Z2 = rho * Z1 + np.sqrt(1 - rho**2) * Z_indep
         
         # Vectorized Euler-Maruyama simulation
