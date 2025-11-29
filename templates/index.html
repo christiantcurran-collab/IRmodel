@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hull-White 2F Yield Curve Simulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18"/>
+                            <path d="M7 16l4-8 4 6 5-10"/>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>Hull-White 2F</h1>
+                        <span class="subtitle">Interest Rate Model Simulator</span>
+                    </div>
+                </div>
+                <div class="gpu-status" id="gpuStatus">
+                    <span class="status-indicator"></span>
+                    <span class="status-text">Checking GPU...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Controls Panel -->
+            <aside class="controls-panel">
+                <div class="panel-section">
+                    <h2 class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/>
+                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                        </svg>
+                        Simulation Settings
+                    </h2>
+                    
+                    <div class="control-group">
+                        <label for="nTrials">Monte Carlo Trials</label>
+                        <input type="number" id="nTrials" value="1000" min="10" max="100000" step="100">
+                        <span class="hint">10 - 100,000</span>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="nSteps">Time Steps</label>
+                        <input type="number" id="nSteps" value="50" min="5" max="500" step="5">
+                        <span class="hint">5 - 500</span>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="totalTime">Horizon (Years)</label>
+                        <input type="number" id="totalTime" value="5" min="0.5" max="50" step="0.5">
+                        <span class="hint">0.5 - 50 years</span>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Compute Device</label>
+                        <div class="device-toggle">
+                            <button class="device-btn active" data-device="cpu">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="4" y="4" width="16" height="16" rx="2"/>
+                                    <rect x="9" y="9" width="6" height="6"/>
+                                    <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3"/>
+                                </svg>
+                                CPU
+                            </button>
+                            <button class="device-btn" data-device="gpu">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="2" y="6" width="20" height="12" rx="2"/>
+                                    <path d="M6 10h4v4H6z"/>
+                                    <path d="M14 10h4v4h-4z"/>
+                                </svg>
+                                GPU
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section collapsible">
+                    <h2 class="section-title" onclick="toggleSection(this)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                            <path d="M2 17l10 5 10-5"/>
+                            <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                        Model Parameters
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </h2>
+                    
+                    <div class="section-content">
+                        <div class="control-group">
+                            <label for="paramA">Mean Reversion (a)</label>
+                            <input type="number" id="paramA" value="0.10" min="0.01" max="0.5" step="0.01">
+                            <span class="hint">Short rate reversion speed</span>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="paramB">Mean Reversion (b)</label>
+                            <input type="number" id="paramB" value="0.04" min="0.01" max="0.2" step="0.01">
+                            <span class="hint">Second factor reversion</span>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="sigma1">Volatility σ₁</label>
+                            <input type="number" id="sigma1" value="0.010" min="0.001" max="0.05" step="0.001">
+                            <span class="hint">Short rate volatility</span>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="sigma2">Volatility σ₂</label>
+                            <input type="number" id="sigma2" value="0.008" min="0.001" max="0.03" step="0.001">
+                            <span class="hint">Second factor volatility</span>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="rho">Correlation (ρ)</label>
+                            <input type="number" id="rho" value="-0.30" min="-0.9" max="0.9" step="0.05">
+                            <span class="hint">Factor correlation</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="runSimulation()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Run Simulation
+                    </button>
+                    <button class="btn btn-secondary" onclick="runComparison()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 20V10M12 20V4M6 20v-6"/>
+                        </svg>
+                        Compare CPU/GPU
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Visualization Area -->
+            <section class="visualization-area">
+                <!-- Time Slider -->
+                <div class="time-control" id="timeControl" style="display: none;">
+                    <div class="time-display">
+                        <span class="time-label">Time:</span>
+                        <span class="time-value" id="currentTime">0.00</span>
+                        <span class="time-unit">years</span>
+                    </div>
+                    <div class="slider-container">
+                        <input type="range" id="timeSlider" min="0" max="100" value="0" class="time-slider">
+                        <div class="slider-track"></div>
+                    </div>
+                    <button class="play-btn" id="playBtn" onclick="togglePlayback()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Yield Curve Evolution</h3>
+                            <span class="chart-subtitle" id="yieldCurveSubtitle">Initial US Treasury Curve</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="yieldCurveChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>Short Rate Paths</h3>
+                            <span class="chart-subtitle" id="shortRateSubtitle">Monte Carlo Simulation</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="shortRateChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card span-2">
+                        <div class="chart-header">
+                            <h3>Yield Curve Surface</h3>
+                            <span class="chart-subtitle">3D view of yield curve through time</span>
+                        </div>
+                        <div class="chart-container" id="surfaceContainer">
+                            <canvas id="surfaceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Panel -->
+                <div class="stats-panel" id="statsPanel" style="display: none;">
+                    <div class="stat-card">
+                        <span class="stat-label">Execution Time</span>
+                        <span class="stat-value" id="execTime">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Device</span>
+                        <span class="stat-value" id="deviceUsed">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Trials</span>
+                        <span class="stat-value" id="trialsRun">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Final Avg Rate</span>
+                        <span class="stat-value" id="finalRate">-</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Comparison Modal -->
+        <div class="modal" id="comparisonModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>CPU vs GPU Performance Comparison</h2>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="comparison-grid">
+                        <div class="comparison-card cpu">
+                            <div class="comparison-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="4" y="4" width="16" height="16" rx="2"/>
+                                    <rect x="9" y="9" width="6" height="6"/>
+                                </svg>
+                            </div>
+                            <h3>CPU</h3>
+                            <div class="comparison-time" id="cpuTime">-</div>
+                            <div class="comparison-device" id="cpuDevice">-</div>
+                        </div>
+                        <div class="comparison-vs">VS</div>
+                        <div class="comparison-card gpu">
+                            <div class="comparison-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="2" y="6" width="20" height="12" rx="2"/>
+                                    <path d="M6 10h4v4H6zM14 10h4v4h-4z"/>
+                                </svg>
+                            </div>
+                            <h3>GPU</h3>
+                            <div class="comparison-time" id="gpuTime">-</div>
+                            <div class="comparison-device" id="gpuDevice">-</div>
+                        </div>
+                    </div>
+                    <div class="speedup-display">
+                        <span class="speedup-label">Speedup</span>
+                        <span class="speedup-value" id="speedupValue">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+            </div>
+            <span class="loading-text">Running simulation...</span>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
+
