@@ -183,18 +183,8 @@ class HullWhite2FSimulatorGPU:
             r_cpu = r
             u_cpu = u
         
-        # Compute yield curves (this is done on CPU as it involves the model)
-        # Limit to subset of trials for efficiency
-        n_maturities = len(yield_maturities)
-        max_yield_trials = min(100, n_trials)
-        yield_curves = np.zeros((max_yield_trials, n_steps + 1, n_maturities), dtype=np.float32)
-        
-        for step in range(n_steps + 1):
-            t = times[step]
-            for trial in range(max_yield_trials):
-                yield_curves[trial, step, :] = self.model.yield_from_rates(
-                    t, r_cpu[trial, step], u_cpu[trial, step], yield_maturities
-                )
+        # VECTORIZED yield curve computation - much faster!
+        yield_curves = self.model.yield_curves_vectorized(times, r_cpu, u_cpu, yield_maturities)
         
         # Compute statistics
         mean_short_rate = np.mean(r_cpu, axis=0)
@@ -212,8 +202,8 @@ class HullWhite2FSimulatorGPU:
         
         return SimulationResult(
             times=times,
-            short_rates=r_cpu[:min(100, n_trials)].astype(np.float64),
-            second_factor=u_cpu[:min(100, n_trials)].astype(np.float64),
+            short_rates=r_cpu.astype(np.float64),
+            second_factor=u_cpu.astype(np.float64),
             yield_curve_times=yield_maturities,
             yield_curves=yield_curves.astype(np.float64),
             mean_short_rate=mean_short_rate.astype(np.float64),

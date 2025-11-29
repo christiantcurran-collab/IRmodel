@@ -157,18 +157,8 @@ class HullWhite2FSimulator:
             diffusion_u = sigma2 * sqrt_dt * Z2[:, i]
             u[:, i + 1] = u[:, i] + drift_u + diffusion_u
         
-        # Compute yield curves at each time step
-        # Only compute for a subset of trials (for efficiency) and all trials for statistics
-        n_maturities = len(yield_maturities)
-        max_yield_trials = min(100, n_trials)  # Limit yield curve computation
-        yield_curves = np.zeros((max_yield_trials, n_steps + 1, n_maturities))
-        
-        for step in range(n_steps + 1):
-            t = times[step]
-            for trial in range(max_yield_trials):
-                yield_curves[trial, step, :] = self.model.yield_from_rates(
-                    t, r[trial, step], u[trial, step], yield_maturities
-                )
+        # VECTORIZED yield curve computation - much faster!
+        yield_curves = self.model.yield_curves_vectorized(times, r, u, yield_maturities)
         
         # Compute statistics
         mean_short_rate = np.mean(r, axis=0)
@@ -177,11 +167,10 @@ class HullWhite2FSimulator:
         
         execution_time = time.perf_counter() - start_time
         
-        # Return full short rate paths but limited yield curve trials
         return SimulationResult(
             times=times,
-            short_rates=r[:min(100, n_trials)],  # Limit for JSON serialization
-            second_factor=u[:min(100, n_trials)],
+            short_rates=r,
+            second_factor=u,
             yield_curve_times=yield_maturities,
             yield_curves=yield_curves,
             mean_short_rate=mean_short_rate,

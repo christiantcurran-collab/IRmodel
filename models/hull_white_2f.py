@@ -232,6 +232,57 @@ class HullWhite2FModel:
                 yields[i] = -np.log(P) / tau
         
         return yields
+    
+    def yield_curves_vectorized(self, times: np.ndarray, r_all: np.ndarray, 
+                                 u_all: np.ndarray, maturities: np.ndarray) -> np.ndarray:
+        """
+        VECTORIZED yield curve computation for all trials and time steps.
+        
+        Args:
+            times: (n_steps+1,) array of time points
+            r_all: (n_trials, n_steps+1) array of short rates
+            u_all: (n_trials, n_steps+1) array of second factor
+            maturities: (n_mats,) array of maturities
+        
+        Returns:
+            (n_trials, n_steps+1, n_mats) array of yields
+        """
+        n_trials, n_steps_plus1 = r_all.shape
+        n_mats = len(maturities)
+        a, b = self.params.a, self.params.b
+        
+        # Pre-compute B factors and A terms for all (time, maturity) pairs
+        B1 = np.zeros((n_steps_plus1, n_mats))
+        B2 = np.zeros((n_steps_plus1, n_mats))
+        ln_A = np.zeros((n_steps_plus1, n_mats))
+        
+        for i, t in enumerate(times):
+            for j, tau in enumerate(maturities):
+                if tau > 0:
+                    B1[i, j] = (1 - np.exp(-a * tau)) / a
+                    B2[i, j] = (1 - np.exp(-b * tau)) / b
+                    
+                    T = t + tau
+                    P_0_T = self.initial_curve.discount_factor(np.array([T]))[0]
+                    P_0_t = self.initial_curve.discount_factor(np.array([max(t, 0.001)]))[0]
+                    f_0_t = self.initial_curve.forward_rate(np.array([max(t, 0.001)]))[0]
+                    
+                    ln_A[i, j] = np.log(P_0_T / P_0_t) - B1[i, j] * f_0_t
+        
+        # Compute yields using broadcasting
+        r_expanded = r_all[:, :, np.newaxis]
+        u_expanded = u_all[:, :, np.newaxis]
+        
+        B1_expanded = B1[np.newaxis, :, :]
+        B2_expanded = B2[np.newaxis, :, :]
+        ln_A_expanded = ln_A[np.newaxis, :, :]
+        
+        ln_P = ln_A_expanded - B1_expanded * r_expanded - B2_expanded * u_expanded
+        tau_expanded = maturities[np.newaxis, np.newaxis, :]
+        
+        yields = np.where(tau_expanded > 0, -ln_P / tau_expanded, r_expanded)
+        
+        return yields
 
 
 def create_default_model() -> HullWhite2FModel:
